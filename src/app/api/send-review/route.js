@@ -1,11 +1,24 @@
 export async function POST(request) {
     try {
-        const { name, message, rating } = await request.json();
+        const { name, phone, message, rating } = await request.json();
 
         const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        const chatId = process.env.TELEGRAM_CHAT_ID;
+        const adminId = process.env.TELEGRAM_ADMIN_ID;
 
-        const text = `📝 Новый отзыв в ресторане AL-HAYAT!\n\n👤 Имя: ${name}\n⭐ Оценка: ${rating}/5\n💬 Отзыв: ${message}\n\n📅 Дата: ${new Date().toLocaleString('ru-RU')}`;
+        if (!botToken || !adminId) {
+            console.error('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_ID');
+            return Response.json({
+                success: false,
+                message: 'Ошибка конфигурации сервера'
+            }, { status: 500 });
+        }
+
+        const text = `📝 **Новый отзыв в ресторане AL-HAYAT!**\n\n` +
+            `👤 **Имя:** ${name}\n` +
+            `📞 **Телефон:** ${phone || 'Не указан'}\n` +
+            `⭐ **Оценка:** ${rating}/5\n` +
+            `💬 **Отзыв:** ${message}\n\n` +
+            `🕐 **Дата:** ${new Date().toLocaleString('ru-RU')}`;
 
         const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
@@ -13,9 +26,9 @@ export async function POST(request) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                chat_id: chatId,
+                chat_id: adminId,
                 text: text,
-                parse_mode: 'HTML',
+                parse_mode: 'Markdown',
             }),
         });
 
@@ -24,9 +37,17 @@ export async function POST(request) {
         if (data.ok) {
             return Response.json({ success: true, message: 'Отзыв отправлен!' });
         } else {
-            return Response.json({ success: false, message: 'Ошибка отправки' }, { status: 500 });
+            console.error('Telegram API error:', data);
+            return Response.json({
+                success: false,
+                message: data.description || 'Ошибка отправки в Telegram'
+            }, { status: 500 });
         }
     } catch (error) {
-        return Response.json({ success: false, message: error.message }, { status: 500 });
+        console.error('Server error:', error);
+        return Response.json({
+            success: false,
+            message: error.message || 'Внутренняя ошибка сервера'
+        }, { status: 500 });
     }
 }
